@@ -1,6 +1,10 @@
+import json
+import os
+import sys
+
 import anthropic
 from dotenv import load_dotenv
-import json
+
 from insights import (
     load_issues,
     count_by_status_category,
@@ -79,13 +83,37 @@ def generate_report(insights):
 
 def main():
     load_dotenv()
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("Missing ANTHROPIC_API_KEY in .env")
+        sys.exit(1)
+
     issues = load_issues()
     insights = build_insights(issues)
-    report = generate_report(insights)
+
+    try:
+        report = generate_report(insights)
+    except anthropic.AuthenticationError:
+        print("Anthropic authentication failed — check ANTHROPIC_API_KEY in .env")
+        sys.exit(1)
+    except anthropic.RateLimitError:
+        print("Rate limited by the Anthropic API — wait a minute and try again")
+        sys.exit(1)
+    except anthropic.APIConnectionError:
+        print("Could not reach the Anthropic API — check your internet connection")
+        sys.exit(1)
+    except anthropic.APIStatusError as error:
+        print(f"Anthropic API error {error.status_code}: {error.message}")
+        sys.exit(1)
+
+    if not report.strip():
+        print("Claude returned no report text — try increasing max_tokens")
+        sys.exit(1)
+
     report_path = "output/report.md"
     with open(report_path, "w") as f:
         f.write(report)
-    print(f"Wrote report to {report_path}")
+    print(f"Wrote report to {report_path}") 
+
 
 if __name__ == "__main__":
     main()
