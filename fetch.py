@@ -33,7 +33,7 @@ def fetch_all_issues(config):
     params = {
         "jql": f"project = {config['JIRA_PROJECT_KEY']}",
         "maxResults": 50,
-        "fields": "summary,status,assignee",
+        "fields": "summary,status,assignee,created",
     }
     auth = (config["JIRA_EMAIL"], config["JIRA_API_TOKEN"])
     all_issues = []
@@ -86,4 +86,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
