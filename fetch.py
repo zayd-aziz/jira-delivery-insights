@@ -66,19 +66,24 @@ def fetch_all_issues(config):
 
     return all_issues
 
-config = get_config()
+def save_issues(issues, path="output/issues.json"):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(issues, f, indent=2)
+    return path
 
-display_name = check_auth(config)
-print(f"Authenticated as {display_name}")
+def main():
+    config = get_config()
+    display_name = check_auth(config)
+    print(f"Authenticated as {display_name}")
 
+    issues = fetch_all_issues(config)
+    for issue in issues:
+        print(f"{issue['key']}: {issue['fields']['summary']}")
 
-#print(f"Authenticated as {me.json()['displayName']}")
-issues = fetch_all_issues(config)
-for issue in issues:
-    print(f"{issue['key']}: {issue['fields']['summary']}")
-os.makedirs("output", exist_ok=True)
+    path = save_issues(issues)
+    print(f"Wrote {len(issues)} issues to {path}")
 
-with open("output/issues.json", "w") as f:
-    json.dump(issues, f, indent=2)
+if __name__ == "__main__":
+    main()
 
-print(f"Wrote {len(issues)} issues to output/issues.json")
