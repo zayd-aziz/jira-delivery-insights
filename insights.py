@@ -58,7 +58,7 @@ def main():
         print("Oldest open issues:")
         for key, days in ages[:5]:
             print(f"  {key}: {days} days")
-            
+
 if __name__ == "__main__":
     main()
     
