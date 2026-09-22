@@ -4,12 +4,27 @@ import requests
 from dotenv import load_dotenv
 import json
 
-load_dotenv()
+REQUIRED_VARS = ["JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "JIRA_PROJECT_KEY"]
+def get_config():
+    load_dotenv()
+    config = {name: os.getenv(name) for name in REQUIRED_VARS}
+    missing = [name for name, value in config.items() if not value]
+    if missing:
+        print(f"Missing required environment variables: {', '.join(missing)}")
+        sys.exit(1)
+    return config
+    me = requests.get(
+        f"{base_url}/rest/api/3/myself",
+        auth=(email, token),
+        headers={"Accept": "application/json"},
+        timeout=30,
+    )
 
-base_url = os.getenv("JIRA_BASE_URL")
-email = os.getenv("JIRA_EMAIL")
-token = os.getenv("JIRA_API_TOKEN")
-project_key = os.getenv("JIRA_PROJECT_KEY")
+config = get_config()
+base_url = config["JIRA_BASE_URL"]
+email = config["JIRA_EMAIL"]
+token = config["JIRA_API_TOKEN"]
+project_key = config["JIRA_PROJECT_KEY"]
 
 url = f"{base_url}/rest/api/3/search/jql"
 
@@ -18,31 +33,11 @@ params = {
     "maxResults": 50,
     "fields": "summary,status,assignee"
 }
+#if me.status_code != 200:
+    #print("Authentication failed — check JIRA_EMAIL and JIRA_API_TOKEN")
+    #sys.exit(1)
 
-required = {
-    "JIRA_BASE_URL": base_url,
-    "JIRA_EMAIL": email,
-    "JIRA_API_TOKEN": token,
-    "JIRA_PROJECT_KEY": project_key,
-}
-
-missing = [name for name, value in required.items() if not value]
-if missing:
-    print(f"Missing required environment variables: {', '.join(missing)}")
-    sys.exit(1)
-
-me = requests.get(
-    f"{base_url}/rest/api/3/myself",
-    auth=(email, token),
-    headers={"Accept": "application/json"},
-    timeout=30,
-)
-
-if me.status_code != 200:
-    print("Authentication failed — check JIRA_EMAIL and JIRA_API_TOKEN")
-    sys.exit(1)
-
-print(f"Authenticated as {me.json()['displayName']}")
+#print(f"Authenticated as {me.json()['displayName']}")
 
 all_issues = []
 
