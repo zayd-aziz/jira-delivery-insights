@@ -17,5 +17,5 @@ message = client.messages.create(
     messages=[{"role": "user", "content": "Reply with exactly: connection OK"}],
 )
 
-print(message.content[0].text)
+print("".join(block.text for block in message.content if block.type == "text"))
 print(f"Tokens used: {message.usage.input_tokens} in, {message.usage.output_tokens} out")
