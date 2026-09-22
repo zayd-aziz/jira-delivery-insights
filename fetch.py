@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import json
 
 REQUIRED_VARS = ["JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "JIRA_PROJECT_KEY"]
+
+
 def get_config():
     load_dotenv()
     config = {name: os.getenv(name) for name in REQUIRED_VARS}
@@ -13,13 +15,18 @@ def get_config():
         print(f"Missing required environment variables: {', '.join(missing)}")
         sys.exit(1)
     return config
+    
+def check_auth(config):
     me = requests.get(
-        f"{base_url}/rest/api/3/myself",
-        auth=(email, token),
+        f"{config['JIRA_BASE_URL']}/rest/api/3/myself",
+        auth=(config["JIRA_EMAIL"], config["JIRA_API_TOKEN"]),
         headers={"Accept": "application/json"},
         timeout=30,
     )
-
+    if me.status_code != 200:
+        print("Authentication failed — check JIRA_EMAIL and JIRA_API_TOKEN")
+        sys.exit(1)
+    return me.json()["displayName"]
 config = get_config()
 base_url = config["JIRA_BASE_URL"]
 email = config["JIRA_EMAIL"]
@@ -33,9 +40,9 @@ params = {
     "maxResults": 50,
     "fields": "summary,status,assignee"
 }
-#if me.status_code != 200:
-    #print("Authentication failed — check JIRA_EMAIL and JIRA_API_TOKEN")
-    #sys.exit(1)
+display_name = check_auth(config)
+print(f"Authenticated as {display_name}")
+
 
 #print(f"Authenticated as {me.json()['displayName']}")
 
