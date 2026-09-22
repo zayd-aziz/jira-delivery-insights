@@ -27,62 +27,58 @@ def check_auth(config):
         print("Authentication failed — check JIRA_EMAIL and JIRA_API_TOKEN")
         sys.exit(1)
     return me.json()["displayName"]
+
+def fetch_all_issues(config):
+    url = f"{config['JIRA_BASE_URL']}/rest/api/3/search/jql"
+    params = {
+        "jql": f"project = {config['JIRA_PROJECT_KEY']}",
+        "maxResults": 50,
+        "fields": "summary,status,assignee",
+    }
+    auth = (config["JIRA_EMAIL"], config["JIRA_API_TOKEN"])
+    all_issues = []
+
+    while True:
+        try:
+            response = requests.get(
+                url,
+                auth=auth,
+                headers={"Accept": "application/json"},
+                params=params,
+                timeout=30,
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as error:
+            print(f"Request failed: {error}")
+            print(response.text)
+            sys.exit(1)
+        except requests.exceptions.RequestException as error:
+            print(f"Connection or request failed: {error}")
+            sys.exit(1)
+
+        data = response.json()
+        all_issues.extend(data["issues"])
+
+        next_token = data.get("nextPageToken")
+        if not next_token:
+            break
+        params["nextPageToken"] = next_token
+
+    return all_issues
+
 config = get_config()
-base_url = config["JIRA_BASE_URL"]
-email = config["JIRA_EMAIL"]
-token = config["JIRA_API_TOKEN"]
-project_key = config["JIRA_PROJECT_KEY"]
 
-url = f"{base_url}/rest/api/3/search/jql"
-
-params = {
-    "jql": f"project = {project_key}",
-    "maxResults": 50,
-    "fields": "summary,status,assignee"
-}
 display_name = check_auth(config)
 print(f"Authenticated as {display_name}")
 
 
 #print(f"Authenticated as {me.json()['displayName']}")
-
-all_issues = []
-
-while True:
-    try: 
-        response = requests.get(
-            url,
-            auth=(email, token),
-            headers={"Accept": "application/json"},
-            params=params,
-            timeout=30
-        )
-        response.raise_for_status()
-    except requests.exceptions.HTTPError as error:
-        print(f"Request failed: {error}")
-        print(response.text)
-        sys.exit(1)
-    except requests.exceptions.RequestException as error:
-        print(f"Connection or request failed: {error}")
-        sys.exit(1)
-
-
-    data = response.json()
-    all_issues.extend(data["issues"])
-    print(response.status_code)
-    print(len(data["issues"]))
-
-    for issue in data["issues"]:
-        print(f"{issue['key']}: {issue['fields']['summary']}")
-
-    next_token = data.get("nextPageToken")
-    if not next_token:
-        break
-    params["nextPageToken"] = next_token
-
+issues = fetch_all_issues(config)
+for issue in issues:
+    print(f"{issue['key']}: {issue['fields']['summary']}")
 os.makedirs("output", exist_ok=True)
 
 with open("output/issues.json", "w") as f:
-    json.dump(all_issues, f, indent=2)
+    json.dump(issues, f, indent=2)
 
-print(f"Wrote {len(all_issues)} issues to output/issues.json")
+print(f"Wrote {len(issues)} issues to output/issues.json")
