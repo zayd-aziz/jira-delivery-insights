@@ -64,3 +64,11 @@ def report(_: None = Depends(require_api_key)):
         raise HTTPException(status_code=502, detail="Claude returned no report text")
 
     return {"report": text, "insights": metrics}
+
+@app.get("/")
+def root():
+    return {
+        "name": "Jira Delivery Insights",
+        "status": "running",
+        "docs": "/docs"
+    }
