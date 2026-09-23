@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+import anthropic
+import httpx
 import app as app_module
 from app import app
 from fetch import JiraError
@@ -65,3 +67,44 @@ def test_insights_returns_502_when_jira_fails(monkeypatch):
 
     assert response.status_code == 502
     assert response.json() == {"detail": "Jira request failed: 503"}
+
+def test_report_returns_text_and_metrics(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(app_module, "get_config", lambda: {})
+    monkeypatch.setattr(app_module, "fetch_all_issues", lambda config: FAKE_ISSUES)
+    monkeypatch.setattr(app_module, "generate_report", lambda metrics: "## Summary\nAll good.")
+
+    response = client.get("/report")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["report"] == "## Summary\nAll good."
+    assert body["insights"]["total_issues"] == 2
+
+
+def test_report_returns_500_without_api_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(app_module, "get_config", lambda: {})
+    monkeypatch.setattr(app_module, "fetch_all_issues", lambda config: FAKE_ISSUES)
+
+    response = client.get("/report")
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Missing ANTHROPIC_API_KEY"}
+
+
+def test_report_returns_502_when_anthropic_unreachable(monkeypatch):
+    def unreachable(metrics):
+        raise anthropic.APIConnectionError(
+            request=httpx.Request("POST", "https://api.anthropic.com")
+        )
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(app_module, "get_config", lambda: {})
+    monkeypatch.setattr(app_module, "fetch_all_issues", lambda config: FAKE_ISSUES)
+    monkeypatch.setattr(app_module, "generate_report", unreachable)
+
+    response = client.get("/report")
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Could not reach the Anthropic API"}
