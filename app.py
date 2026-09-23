@@ -1,3 +1,7 @@
+import secrets
+
+from fastapi import Depends, Security
+from fastapi.security import APIKeyHeader
 import os
 
 import anthropic
@@ -7,7 +11,15 @@ from fetch import JiraError, fetch_all_issues, get_config
 from report import build_insights, generate_report
 
 app = FastAPI(title="Jira Delivery Insights")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+
+def require_api_key(provided_key: str = Security(api_key_header)):
+    expected_key = os.getenv("API_KEY")
+    if not expected_key:
+        raise HTTPException(status_code=500, detail="Missing API_KEY on server")
+    if not provided_key or not secrets.compare_digest(provided_key, expected_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 def load_live_issues():
     try:
@@ -27,12 +39,11 @@ def health():
 
 
 @app.get("/insights")
-def insights():
+def insights(_: None = Depends(require_api_key)):
     return build_insights(load_live_issues())
 
-
 @app.get("/report")
-def report():
+def report(_: None = Depends(require_api_key)):
     metrics = build_insights(load_live_issues())
 
     if not os.getenv("ANTHROPIC_API_KEY"):

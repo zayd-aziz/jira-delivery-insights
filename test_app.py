@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 import anthropic
@@ -8,6 +9,13 @@ from fetch import JiraError
 
 
 client = TestClient(app)
+
+AUTH_HEADERS = {"X-API-Key": "test-key"}
+
+
+@pytest.fixture(autouse=True)
+def set_api_key(monkeypatch):
+    monkeypatch.setenv("API_KEY", "test-key")
 
 
 def test_health_returns_ok():
@@ -47,7 +55,7 @@ def test_insights_returns_metrics(monkeypatch):
     monkeypatch.setattr(app_module, "get_config", lambda: {})
     monkeypatch.setattr(app_module, "fetch_all_issues", lambda config: FAKE_ISSUES)
 
-    response = client.get("/insights")
+    response = client.get("/insights", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     body = response.json()
@@ -63,7 +71,7 @@ def test_insights_returns_502_when_jira_fails(monkeypatch):
     monkeypatch.setattr(app_module, "get_config", lambda: {})
     monkeypatch.setattr(app_module, "fetch_all_issues", failing_fetch)
 
-    response = client.get("/insights")
+    response = client.get("/insights", headers=AUTH_HEADERS)
 
     assert response.status_code == 502
     assert response.json() == {"detail": "Jira request failed: 503"}
@@ -74,7 +82,7 @@ def test_report_returns_text_and_metrics(monkeypatch):
     monkeypatch.setattr(app_module, "fetch_all_issues", lambda config: FAKE_ISSUES)
     monkeypatch.setattr(app_module, "generate_report", lambda metrics: "## Summary\nAll good.")
 
-    response = client.get("/report")
+    response = client.get("/report", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     body = response.json()
@@ -87,7 +95,7 @@ def test_report_returns_500_without_api_key(monkeypatch):
     monkeypatch.setattr(app_module, "get_config", lambda: {})
     monkeypatch.setattr(app_module, "fetch_all_issues", lambda config: FAKE_ISSUES)
 
-    response = client.get("/report")
+    response = client.get("/report", headers=AUTH_HEADERS)
 
     assert response.status_code == 500
     assert response.json() == {"detail": "Missing ANTHROPIC_API_KEY"}
@@ -104,7 +112,28 @@ def test_report_returns_502_when_anthropic_unreachable(monkeypatch):
     monkeypatch.setattr(app_module, "fetch_all_issues", lambda config: FAKE_ISSUES)
     monkeypatch.setattr(app_module, "generate_report", unreachable)
 
-    response = client.get("/report")
+    response = client.get("/report", headers=AUTH_HEADERS)
 
     assert response.status_code == 502
     assert response.json() == {"detail": "Could not reach the Anthropic API"}
+
+
+def test_insights_returns_401_without_api_key():
+    response = client.get("/insights")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid or missing API key"}
+
+
+def test_insights_returns_401_with_wrong_api_key():
+    response = client.get("/insights", headers={"X-API-Key": "wrong-key"})
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid or missing API key"}
+
+
+def test_report_returns_401_without_api_key():
+    response = client.get("/report")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid or missing API key"}
